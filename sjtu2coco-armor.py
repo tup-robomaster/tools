@@ -1,8 +1,10 @@
 """
 YOLO 格式的数据集转化为 COCO 格式的数据集
 --root_dir 输入根路径
+--train_dir 保存训练集图片路径
+--val_dir 保存验证集图片路径
 --save_path 保存文件的名字(没有random_split时使用)
---random_split 有则会随机划分数据集，然后再分别保存为3个文件。
+--random_split 有则会随机划分数据集, 然后再分别保存为3个文件。
 """
 
 import os
@@ -14,9 +16,11 @@ from sklearn.model_selection import train_test_split
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--root_dir', default='./data',type=str, help="root path of images and labels, include ./images and ./labels and classes.txt")
-parser.add_argument('--save_path', type=str,default='./train.json', help="if not split the dataset, give a path to a json file")
+parser.add_argument('--root_dir', default='/mnt/h/current_dataset/rune_coco/',type=str, help="root path of images and labels, include ./images and ./labels and classes.txt")
+parser.add_argument('--save_path', type=str,default='train.json', help="if not split the dataset, give a path to a json file")
 parser.add_argument('--random_split', action='store_true', help="random split the dataset, default ratio is 8:1:1")
+parser.add_argument('--train_dir', default='/mnt/h/current_dataset/rune_coco/train2017',type=str, help="path to store the splited train images")
+parser.add_argument('--val_dir', default='/mnt/h/current_dataset/rune_coco/val2027',type=str, help="path to store the splited val images")
 arg = parser.parse_args()
 
 def train_test_val_split(img_paths,ratio_train=0.1,ratio_test=0,ratio_val=0.2):
@@ -35,7 +39,7 @@ def train_val_split(img_paths,ratio_train=0.1,ratio_val=0.2):
     return train_img, val_img
 
 
-def yolo2coco(root_path, random_split):
+def yolo2coco(root_path, train_img_folder, val_img_folder, random_split):
     originLabelsDir = os.path.join(root_path, 'labels')                                        
     originImagesDir = os.path.join(root_path, 'images')
     with open(os.path.join(root_path, 'classes.txt')) as f:
@@ -59,7 +63,7 @@ def yolo2coco(root_path, random_split):
         dataset = {'categories': [], 'annotations': [], 'images': []}
         for i, cls in enumerate(classes, 0):
             dataset['categories'].append({'id': i, 'name': cls, 'supercategory': 'mark'})
-    
+
     # 标注的id
     ann_id_cnt = 0
     for k, index in enumerate(tqdm(indexes)):
@@ -72,8 +76,19 @@ def yolo2coco(root_path, random_split):
             # 切换dataset的引用对象，从而划分数据集
                 if index in train_img:
                     dataset = train_dataset
+                    # 创建保存train图片文件夹
+                    if not os.path.exists(train_img_folder):
+                        os.makedirs(train_img_folder)
+                    # 将划分好的训练集图片保存到指定文件夹下
+                    cv2.imwrite(os.path.join(train_img_folder, index), im)
                 elif index in val_img:
                     dataset = val_dataset
+                    # 创建保存val图片文件夹
+                    if not os.path.exists(val_img_folder):
+                        os.makedirs(val_img_folder)
+                    # 将划分好的验证集图片保存到指定文件夹下
+                    cv2.imwrite(os.path.join(val_img_folder, index), im)
+                    
         # 添加图像的信息
         dataset['images'].append({'file_name': index,
                                     'id': k,
@@ -88,37 +103,39 @@ def yolo2coco(root_path, random_split):
             for label in labelList:
                 label = label.split(" ")
                 H, W, _ = im.shape
-                x1 = float(label[1]) * W
-                y1 = float(label[2]) * H
-                x2 = float(label[3]) * W
-                y2 = float(label[4]) * H
-                x3 = float(label[5]) * W
-                y3 = float(label[6]) * H
-                x4 = float(label[7]) * W
-                y4 = float(label[8]) * H
+                x1 = float(label[5]) * W
+                y1 = float(label[6]) * H
+                x2 = float(label[7]) * W
+                y2 = float(label[8]) * H
+                x3 = float(label[9]) * W
+                y3 = float(label[10]) * H
+                x4 = float(label[11]) * W
+                y4 = float(label[12]) * H
+                x5 = float(label[13]) * W
+                y5 = float(label[14]) * H
 
 
-                keypoints = np.array([x1, y1, x2, y2, x3, y3, x4, y4])
+                keypoints = np.array([x1, y1, x2, y2, x3, y3, x4, y4, x5, y5])
                 num_keypoints = int(len(keypoints) / 2)
 
-                keypoints = keypoints.reshape(-1,2)
+                keypoints = keypoints.reshape(-1,2) # 
                 keypoints_type = 2 * np.ones((num_keypoints, 1))
                 keypoints = np.concatenate((keypoints,keypoints_type),axis=1)
                 keypoints = keypoints.reshape(-1).tolist()
 
                 # 标签序号从0开始计算, coco2017数据集标号混乱，不管它了。
                 cls_id = int(label[0])   
-                width = max(x1, x2, x3, x4) - min(x1, x2, x3, x4)
-                height = max(y1, y2, y3, y4) - min(y1, y2, y3, y4)
+                width = max(x1, x2, x3, x4, x5) - min(x1, x2, x3, x4, x5)
+                height = max(y1, y2, y3, y4, y5) - min(y1, y2, y3, y4, y5)
                 dataset['annotations'].append({
                     'area': width * height,
-                    'bbox': [min(x1, x2, x3, x4), min(y1, y2, y3, y4) , width, height],
+                    'bbox': [min(x1, x2, x3, x5), min(y1, y2, y3, y5) , width, height],
                     'category_id': cls_id,
                     'id': ann_id_cnt,
                     'image_id': k,
                     'iscrowd': 0,
                     # mask, 矩形是从左上角点按顺时针的四个顶点
-                    'segmentation': [[x1, y1, x2, y2, x3, y3, x4, y4]],
+                    'segmentation': [[x1, y1, x2, y2, x3, y3, x4, y4, x5, y5]],
                     'num_keypoints': num_keypoints,
                     'keypoints': keypoints
                 })
@@ -138,7 +155,7 @@ def yolo2coco(root_path, random_split):
                     json.dump(val_dataset, f)
                 elif phase == 'test':
                     json.dump(test_dataset, f)
-            print('Save annotation to {}'.format(json_name))
+            print('Save annotation to {}'.format(json_name))   
     else:
         json_name = os.path.join(root_path, 'annotations/{}'.format(arg.save_path))
         with open(json_name, 'w') as f:
@@ -147,7 +164,9 @@ def yolo2coco(root_path, random_split):
 
 if __name__ == "__main__":
     root_path = arg.root_dir
+    train_img_folder = arg.train_dir
+    val_img_folder = arg.val_dir
     assert os.path.exists(root_path)
     random_split = arg.random_split
     print("Loading data from ",root_path,"\nWhether to split the data:",random_split)
-    yolo2coco(root_path,random_split)
+    yolo2coco(root_path, train_img_folder, val_img_folder, random_split)
