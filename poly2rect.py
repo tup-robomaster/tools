@@ -59,7 +59,7 @@ def main():
 						#Adjust
 						[x, y, w, h] = [x, y, float(arg.w_ratio) * w, float(arg.h_ratio) * h]
 
-						dst.write(str(object_index) + " " + str(x) + " " + str(y) + " " + " " + str(w) + " " + str(h) +"\n")
+						dst.write(str(object_index) + " " + str(x) + " " + str(y) + " " + str(w) + " " + str(h) +"\n")
 					cnt+=1
 	print("Successfully transformed", cnt, "txts from",arg.root_dir, "and saved to",arg.save_path, ".")
 
